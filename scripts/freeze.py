@@ -75,7 +75,7 @@ options = {
     # pyqode is a namespace package bundled in open_cobol_ide/extlibs
     'packages': ['pyqode', 'pyqode.core', 'pyqode.cobol', 'pyqode.qt'],
     # freeze the pygments default style along with our executable
-    'includes': pygments_styles + pygments_lexers
+    'includes': pygments_styles + pygments_lexers + ['PyQt5.QtSerialPort']
 }
 
 if windows:

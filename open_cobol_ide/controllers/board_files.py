@@ -97,6 +97,28 @@ ABSENT_POLLS = 2
 # Âge maximal (secondes) de la dernière liste des cartes branchées.
 PORTS_MAX_AGE = 4.0
 
+# Tant que la liste des ports série n'a pas changé (lecture directe, sans lancer
+# mpremote), la dernière liste des cartes reste valable au plus ce temps (s).
+PORTS_UNCHANGED_MAX_AGE = 60.0
+
+
+def port_signature():
+    """
+    Empreinte de l'ensemble des ports série branchés, lue directement dans
+    Windows (quelques millisecondes, sans lancer de processus).
+
+    :return: un tuple trié, ou None si QtSerialPort est indisponible (on
+             revient alors au sondage par mpremote).
+    """
+    try:
+        from PyQt5.QtSerialPort import QSerialPortInfo
+        return tuple(sorted(
+            (p.portName(), p.serialNumber(), p.vendorIdentifier(),
+             p.productIdentifier(), p.description())
+            for p in QSerialPortInfo.availablePorts()))
+    except Exception:
+        return None
+
 
 def _candidate_roots():
     """Racines des volumes amovibles du PC (lecteurs USB)."""
@@ -277,6 +299,9 @@ class BoardFilesPanel(QtCore.QObject):
         system.clean_stale_board_caches()
         QtCore.QTimer.singleShot(300, self._poll)     # première vérification
         self._ports_seen = None     # (heure, liste des cartes branchées)
+        self._seen_signature = None     # empreinte des ports à ce moment-là
+        self._signature = None      # dernière empreinte vue par le sondage
+        self._burst = 0             # sondages mpremote encore à faire
         self._reload_after_run = False
         #: cartes branchées (None : pas encore vérifié) et compteur d'absences
         self._connected = None
@@ -365,7 +390,34 @@ class BoardFilesPanel(QtCore.QObject):
         if self._interpreter is None:
             self._check_mpremote()      # en arrière-plan, puis on reprend
             return
+        signature = port_signature()
+        if signature is not None:
+            if signature != self._signature:
+                # un port est apparu ou a disparu : quelques sondages de
+                # plus (le lecteur d'une carte monte un peu après son port,
+                # et l'absence d'une carte est confirmée sur plusieurs tours)
+                self._signature = signature
+                self._burst = ABSENT_POLLS + 1
+            if self._burst <= 0:
+                # rien n'a changé : pas de processus, on suit seulement les
+                # fichiers du lecteur d'une carte CircuitPython
+                if self.button.isChecked():
+                    self._sync_drive_tree()
+                return
+            self._burst -= 1
         self._run(['connect', 'list'], self._polled, raw=True)
+
+    def _ports_fresh(self):
+        """La dernière liste des cartes branchées est-elle encore valable ?"""
+        seen = self._ports_seen
+        if seen is None:
+            return False
+        age = time.monotonic() - seen[0]
+        if age < PORTS_MAX_AGE:
+            return True
+        return age < PORTS_UNCHANGED_MAX_AGE and \
+            self._seen_signature is not None and \
+            port_signature() == self._seen_signature
 
     def _mpremote_missing(self):
         # mpremote pas prêt : aucune carte n'est utilisable, donc aucun
@@ -513,6 +565,7 @@ class BoardFilesPanel(QtCore.QObject):
         from .micropython import parse_port_list
         ports = parse_port_list(out)
         self._ports_seen = (time.monotonic(), ports)
+        self._seen_signature = port_signature()
         chosen = Settings().micropython_port
         if chosen:
             for port, _, serial in ports:
@@ -914,9 +967,8 @@ class BoardFilesPanel(QtCore.QObject):
             else:
                 callback(*found)
 
-        seen = self._ports_seen
-        if seen is not None and time.monotonic() - seen[0] < PORTS_MAX_AGE:
-            resolve(seen[1])
+        if self._ports_fresh():
+            resolve(self._ports_seen[1])
             return
 
         def done(ok, out, err):
@@ -932,9 +984,8 @@ class BoardFilesPanel(QtCore.QObject):
                     return
             missing()
 
-        seen = self._ports_seen
-        if seen is not None and time.monotonic() - seen[0] < PORTS_MAX_AGE:
-            check(seen[1])
+        if self._ports_fresh():
+            check(self._ports_seen[1])
             return
         self._run(['connect', 'list'],
                   lambda ok, out, err: check(self._note_ports(out) if ok
