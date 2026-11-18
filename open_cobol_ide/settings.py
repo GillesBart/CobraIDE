@@ -1,6 +1,7 @@
 """
 This module contains a class for accessing the application settings.
 """
+import ast
 import logging
 import base64
 import json
@@ -10,6 +11,22 @@ from pyqode.qt import QtCore, QtWidgets, QtGui
 from pyqode.qt.QtCore import QSettings
 from open_cobol_ide import system
 from open_cobol_ide.enums import FileType, GnuCobolStandard
+
+
+def _literal_list(value, default):
+    """
+    Relit une liste enregistrée par repr() dans le fichier .ini, sans eval()
+    (un .ini abîmé ou modifié à la main ne doit ni planter ni exécuter du code).
+    """
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    try:
+        result = ast.literal_eval(value)
+    except (ValueError, SyntaxError, TypeError):
+        return list(default)
+    if isinstance(result, (list, tuple)):
+        return list(result)
+    return list(default)
 
 
 class Settings(object):
@@ -573,7 +590,9 @@ class Settings(object):
 
     @property
     def compiler_flags(self):
-        lst = eval(self._settings.value('compilerFlags', '["-debug", "-Wall"]'))
+        lst = _literal_list(
+            self._settings.value('compilerFlags', '["-debug", "-Wall"]'),
+            ['-debug', '-Wall'])
         ret_val = []
         for v in lst:
             if v:
@@ -614,8 +633,10 @@ class Settings(object):
 
     @property
     def cobc_extensions(self):
-        values = eval(self._settings.value('cobcExtensions',
-                      "['.cob', '.cbl', '.pco', '.lst']"))
+        values = _literal_list(
+            self._settings.value('cobcExtensions',
+                                 "['.cob', '.cbl', '.pco', '.lst']"),
+            ['.cob', '.cbl', '.pco', '.lst'])
         return [v.lower() for v in values]
 
     @cobc_extensions.setter
@@ -713,7 +734,8 @@ class Settings(object):
 
     @property
     def esqloc_extensions(self):
-        values = eval(self._settings.value('esqlOcExtensions', "['.sqb']"))
+        values = _literal_list(
+            self._settings.value('esqlOcExtensions', "['.sqb']"), ['.sqb'])
         return [v.lower() for v in values]
 
     @esqloc_extensions.setter
@@ -723,7 +745,8 @@ class Settings(object):
 
     @property
     def dbpre_extensions(self):
-        values = eval(self._settings.value('dbpreExtensions', "['.scb']"))
+        values = _literal_list(
+            self._settings.value('dbpreExtensions', "['.scb']"), ['.scb'])
         return [v.lower() for v in values]
 
     @dbpre_extensions.setter

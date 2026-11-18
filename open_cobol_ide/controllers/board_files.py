@@ -1406,6 +1406,10 @@ class BoardFilesPanel(QtCore.QObject):
             QtWidgets.QApplication.processEvents()
             time.sleep(0.02)
         self._queue.clear()
+        check = self._check
+        if check is not None and not check.wait(3000):
+            check.terminate()           # jamais détruire un fil en cours
+            check.wait(500)
         job = self._job
         if job is not None:
             if not job.wait(3000):
@@ -1471,6 +1475,7 @@ class BoardFilesPanel(QtCore.QObject):
                 self.controller._args(*args, port=port)
         env = dict(os.environ, **child_environment())
         job = _Job(command, env, self)
+        job.finished.connect(job.deleteLater)     # sinon un fil mort par sondage
         job.done.connect(
             lambda code, out, err: self._finished(callback, code, out, err))
         self._job = job
