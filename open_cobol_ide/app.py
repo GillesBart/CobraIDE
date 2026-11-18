@@ -9,6 +9,7 @@ import logging
 import mimetypes
 import os
 import sys
+import threading
 from pyqode.qt import QtCore, QtWidgets, QT_API, PYQT5_API, PYSIDE_API
 
 from open_cobol_ide.translation import tr
@@ -41,6 +42,10 @@ class Application(QtCore.QObject):
     The application class contains references to the main window user interface
     and to the various controllers so that they can collaborate each others.
     """
+    #: erreur imprévue (exception, texte du traceback) : émis depuis le fil où
+    #: elle s'est produite, la fenêtre est affichée par le fil principal
+    _report_exception_requested = QtCore.Signal(object, str)
+
     def apply_mimetypes_preferences(self):
         for ext in Settings().all_extensions:
             mimetypes.add_type('text/x-cobol', ext)
@@ -58,7 +63,11 @@ class Application(QtCore.QObject):
         translation.install(self.app)
 
         self._reported_tracebacks = []
+        self._report_exception_requested.connect(self._report_exception)
         sys.excepthook = self._except_hook
+        if hasattr(threading, 'excepthook'):
+            # les fils Python (threading) n'utilisent pas sys.excepthook
+            threading.excepthook = self._thread_except_hook
         # if hasattr(sys, 'frozen') and sys.platform == 'win32':
         #     sys.stdout = open(os.path.join(system.get_cache_directory(),
         #                                    'ocide_stdout.log'), 'w')
@@ -265,20 +274,19 @@ class Application(QtCore.QObject):
 
         return parser.parse_args()
 
-    def _except_hook(self, exc_type, exc_val, tb):
-        tb = '\n'.join([''.join(traceback.format_tb(tb)),
-                        '{0}: {1}'.format(exc_type.__name__, exc_val)])
-        # exception might come from another thread, use a signal
-        # so that we can be sure we will show the bug report dialog from
-        # the main gui thread.
-        self._report_exception_requested.emit(exc_val, tb)
-
     def _except_hook(self, exc_type, exc, tb):
         """
-        Logs unhandled exceptions and shows them to the user.
+        Erreur imprévue : peut venir d'un autre fil que le fil principal, alors
+        que Qt n'accepte d'ouvrir une fenêtre que depuis ce dernier. On passe
+        donc par un signal (mis en file d'attente automatiquement entre fils).
         """
-        self._report_exception(
-            exc, ''.join(traceback.format_exception(exc_type, exc, tb)))
+        text = ''.join(traceback.format_exception(exc_type, exc, tb))
+        self._report_exception_requested.emit(exc, text)
+
+    def _thread_except_hook(self, args):
+        if args.exc_type is SystemExit:
+            return
+        self._except_hook(args.exc_type, args.exc_value, args.exc_traceback)
 
     def _report_exception(self, exc, tb):
         try:
@@ -293,6 +301,7 @@ class Application(QtCore.QObject):
             self._reported_tracebacks.append(_tb)
             title = tr('[Unhandled exception] %s') % exc.__class__.__name__
             description = tr('An unhandled exception has occured:\n\n%s') % tb
-            QtWidgets.QMessageBox.critical(self.win, title, description)
+            QtWidgets.QMessageBox.critical(
+                getattr(self, 'win', None), title, description)
         except Exception:
             _logger().exception('exception in excepthook')
