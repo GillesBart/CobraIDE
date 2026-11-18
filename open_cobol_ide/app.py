@@ -207,6 +207,9 @@ class Application(QtCore.QObject):
         # setup logger
         debug = args.verbose or Settings().verbose
         logger.setup_logging(__version__, level=Settings().log_level)
+        if getattr(self, '_ignored_args', None):
+            _logger().info('ignored command line options: %r',
+                           self._ignored_args)
 
         # show runtime env
         if args.runtime_env:
@@ -272,7 +275,13 @@ class Application(QtCore.QObject):
             help='Specify a configuration file (previously exported from '
             'within the IDE (File->Export preferences))')
 
-        return parser.parse_args()
+        # Les programmes qui nous lancent comme éditeur ajoutent souvent leurs
+        # propres options (« -N » de PSPad pour une nouvelle fenêtre...) : on
+        # les ignore au lieu de quitter sans un mot (l'exe n'a pas de console
+        # pour afficher l'erreur) ; seuls les fichiers comptent.
+        args, ignored = parser.parse_known_args()
+        self._ignored_args = ignored
+        return args
 
     def _except_hook(self, exc_type, exc, tb):
         """
