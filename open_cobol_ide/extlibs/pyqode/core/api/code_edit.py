@@ -874,7 +874,8 @@ class CodeEdit(QtWidgets.QPlainTextEdit):
         helper = TextHelper(self)
         tc.beginEditBlock()
         no_selection = False
-        if not helper.current_line_text():
+        if not tc.hasSelection() and not helper.current_line_text():
+            # ligne vide sans sélection : on supprime juste le saut de ligne
             tc.deleteChar()
         else:
             if not self.textCursor().hasSelection():
