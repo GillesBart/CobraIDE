@@ -185,7 +185,38 @@ def is_read_only_error(message):
 
 
 DELETE_FILE_CODE = "import os\np = %r\nos.remove(p)\n"
-DELETE_DIR_CODE = "import os\np = %r\nos.rmdir(p)\n"
+# Supprime un dossier avec tout son contenu (os.rmdir seul refuse un dossier
+# non vide).
+DELETE_DIR_CODE = (
+    "import os\n"
+    "def rm(p):\n"
+    "    for n in os.listdir(p):\n"
+    "        q = p.rstrip('/') + '/' + n\n"
+    "        if os.stat(q)[0] & 0x4000:\n"
+    "            rm(q)\n"
+    "        else:\n"
+    "            os.remove(q)\n"
+    "    os.rmdir(p)\n"
+    "rm(%r)\n"
+)
+
+# Renomme ``a`` en ``b`` sauf si ``b`` existe déjà (EXISTS). La comparaison en
+# minuscules laisse passer un simple changement de casse (système FAT, qui ne
+# distingue pas les majuscules).
+RENAME_CODE = (
+    "import os\n"
+    "a = %r\n"
+    "b = %r\n"
+    "try:\n"
+    "    os.stat(b)\n"
+    "    found = a.lower() != b.lower()\n"
+    "except OSError:\n"
+    "    found = False\n"
+    "if found:\n"
+    "    print('EXISTS')\n"
+    "else:\n"
+    "    os.rename(a, b)\n"
+)
 
 LIST_DIR_CODE = (
     "import os\n"
@@ -606,6 +637,7 @@ class BoardFilesPanel(QtCore.QObject):
         folder = self._folder_item(item)
         menu = QtWidgets.QMenu(self.tree)
         if item is not None and item.data(0, ROLE_PATH) not in (None, '/'):
+            menu.addAction(tr('Rename...'), lambda: self._rename(item))
             menu.addAction(tr('Delete...'), lambda: self._delete(item))
             menu.addSeparator()
         if folder is not None:
@@ -618,10 +650,14 @@ class BoardFilesPanel(QtCore.QObject):
         menu.exec_(self.tree.mapToGlobal(pos))
 
     def _delete(self, item):
-        """Supprime un fichier (ou un dossier vide) de la carte, après accord."""
+        """
+        Supprime un fichier ou un dossier (avec son contenu) de la carte,
+        après accord.
+        """
         remote = item.data(0, ROLE_PATH)
         is_dir = bool(item.data(0, ROLE_DIR))
-        text = tr('Delete the folder "%s" from the board?') if is_dir \
+        text = tr('Delete the folder "%s" and everything it contains from '
+                  'the board?') if is_dir \
             else tr('Delete the file "%s" from the board?')
         if QtWidgets.QMessageBox.question(
                 self.controller.main_window, tr('Delete'),
@@ -634,7 +670,7 @@ class BoardFilesPanel(QtCore.QObject):
         if drive:
             target = self.drive_path(drive, remote)
             try:
-                os.rmdir(target) if is_dir else os.remove(target)
+                shutil.rmtree(target) if is_dir else os.remove(target)
             except OSError as e:
                 self._error(tr('Delete'), str(e))
                 return
@@ -664,7 +700,7 @@ class BoardFilesPanel(QtCore.QObject):
             return False
         try:
             if is_dir:
-                os.rmdir(target)
+                shutil.rmtree(target)
             else:
                 os.remove(target)
         except OSError:
@@ -674,17 +710,22 @@ class BoardFilesPanel(QtCore.QObject):
 
     def _forget_cache_copy(self, remote, board):
         """
-        Efface la copie locale d'un fichier supprimé de la carte. Un onglet
-        ouvert dessus reste ouvert : il faudra « Enregistrer sous ».
+        Efface la copie locale d'un fichier (ou dossier) supprimé ou renommé
+        sur la carte. Un onglet ouvert dessus (ou sur un fichier du dossier)
+        reste ouvert : il faudra « Enregistrer sous ».
         """
         local = self.local_path(remote, board)
-        key = os.path.normcase(os.path.abspath(local))
+        keys = [os.path.normcase(os.path.abspath(local))]
+        target = self._drive_target(board, remote)
+        if target is not None:          # carte montée : fichiers du lecteur
+            keys.append(os.path.normcase(os.path.abspath(target)))
         for editor in self._ui.tabWidgetEditors.widgets(include_clones=True):
             try:
-                if os.path.normcase(os.path.abspath(editor.file.path)) == key:
-                    self._freeze_editor(editor)
+                path = os.path.normcase(os.path.abspath(editor.file.path))
             except (AttributeError, TypeError):
                 continue
+            if any(path == k or path.startswith(k + os.sep) for k in keys):
+                self._freeze_editor(editor)
         try:
             if os.path.isdir(local):
                 shutil.rmtree(local, ignore_errors=True)
@@ -693,6 +734,78 @@ class BoardFilesPanel(QtCore.QObject):
         except OSError:
             pass
         self._refresh_recents()
+
+    def _rename(self, item):
+        """Renomme un fichier ou un dossier de la carte (dans son dossier)."""
+        remote = item.data(0, ROLE_PATH)
+        folder, old_name = remote.rsplit('/', 1)
+        folder = folder or '/'
+        name, ok = QtWidgets.QInputDialog.getText(
+            self.controller.main_window, tr('Rename'), tr('New name:'),
+            QtWidgets.QLineEdit.Normal, old_name)
+        name = name.strip()
+        if not ok or not name or name == old_name:
+            return
+        if '/' in name or chr(92) in name:
+            self._error(tr('Rename'), tr(
+                'The name cannot contain a slash or a backslash'))
+            return
+        new = join_remote(folder, name)
+        board = self._shown_id or self.board_id()
+        drive = self.drive_of(board)
+        if drive:
+            source = self.drive_path(drive, remote)
+            target = self.drive_path(drive, new)
+            if os.path.exists(target) and \
+                    old_name.lower() != name.lower():
+                self._exists(name)
+                return
+            try:
+                os.rename(source, target)
+            except OSError as e:
+                self._error(tr('Rename'), str(e))
+                return
+            self._renamed(True, '', remote, new, board, item.parent())
+            return
+        self._run(['exec', RENAME_CODE % (remote, new)],
+                  lambda ok, out, err: self._renamed(
+                      ok, err or out, remote, new, board, item.parent(),
+                      exists='EXISTS' in out))
+
+    def _exists(self, name):
+        self._error(tr('Rename'), tr(
+            'A file or folder named "%s" already exists here.') % name)
+
+    def _renamed(self, ok, message, remote, new, board, parent, exists=False):
+        if ok and exists:
+            self._exists(new.rsplit('/', 1)[-1])
+            return
+        if not ok and is_read_only_error(message):
+            ok = self._rename_via_drive(remote, new, board)
+        if not ok:
+            self._error(tr('Rename'), message)
+            return
+        self._forget_cache_copy(remote, board)
+        if parent is not None:
+            try:
+                self._reload(parent)
+            except RuntimeError:
+                self.refresh()
+
+    def _rename_via_drive(self, remote, new, board):
+        source = self._drive_target(board, remote)
+        target = self._drive_target(board, new)
+        if source is None or target is None:
+            return False
+        try:
+            if os.path.exists(target) and \
+                    remote.lower() != new.lower():
+                return False
+            os.rename(source, target)
+        except OSError:
+            _logger().exception('cannot rename on the drive')
+            return False
+        return True
 
     def _folder_item(self, item):
         """Dossier dans lequel créer : l'élément, son parent, ou la racine."""
