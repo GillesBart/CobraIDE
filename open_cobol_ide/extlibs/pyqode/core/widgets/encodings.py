@@ -102,6 +102,9 @@ class EncodingsMenu(QtWidgets.QMenu):
         super(EncodingsMenu, self).__init__(parent)
         self.setTitle(title if title else _('Encodings'))
         self._group = QtWidgets.QActionGroup(self)
+        # connecté une seule fois (pas à chaque rafraîchissement du menu,
+        # sinon l'action était traitée autant de fois)
+        self._group.triggered.connect(self._on_encoding_triggered)
         self._edit_action = None
         self._current_encoding = ''
         self.current_encoding = selected_encoding
@@ -129,7 +132,6 @@ class EncodingsMenu(QtWidgets.QMenu):
                     action.setChecked(True)
                 self.addAction(action)
                 self._group.addAction(action)
-        self._group.triggered.connect(self._on_encoding_triggered)
         self.addSeparator()
         self._edit_action = QtWidgets.QAction(_('Add or remove'), self)
         self._edit_action.triggered.connect(self._on_edit_requested)
@@ -174,6 +176,15 @@ class EncodingsContextMenu(EncodingsMenu):
         super(EncodingsContextMenu, self)._refresh()
 
     def _on_reload_requested(self, encoding):
+        # relire le fichier efface les modifications non enregistrées
+        if self.parent().dirty and QtWidgets.QMessageBox.question(
+                self.parent(), _('Reload the file'),
+                _('The file has unsaved changes. Reloading it with encoding '
+                  '%s will discard them. Continue?') % encoding,
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                QtWidgets.QMessageBox.No) != QtWidgets.QMessageBox.Yes:
+            self._refresh()     # recoche l'encodage actuel
+            return
         self._encoding = encoding
         self._timer.start()
 
