@@ -180,16 +180,22 @@ class EncodingsContextMenu(EncodingsMenu):
     def _reload(self):
         self._timer.stop()
         try:
-            self.parent().file.reload(self._encoding)
+            reloaded = self.parent().file.reload(self._encoding)
         except UnicodeDecodeError:
             QtWidgets.QMessageBox.warning(
                 self.parent(), _('Decoding error'),
                 _('Failed to reload file with encoding %s') % self._encoding)
         else:
+            if not reloaded:
+                # l'encodage choisi ne convient pas non plus : le panneau
+                # d'erreur d'encodage est de nouveau affiché
+                return
             try:
                 from pyqode.core.panels import EncodingPanel
                 panel = self.parent().panels.get(EncodingPanel)
             except KeyError:
                 pass
             else:
-                panel.close_panel()
+                # le fichier est lu : on masque le panneau d'erreur sans
+                # demander la fermeture de l'onglet (close_panel() le ferait)
+                panel.dismiss()

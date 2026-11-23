@@ -181,6 +181,15 @@ class EncodingPanel(Panel):
         self.enable_caret_line(True)
         self.editor.file.reload(self.ui.comboBoxEncodings.current_encoding)
 
+    def dismiss(self):
+        """
+        Masque le panneau (le fichier a pu être relu avec un autre encodage)
+        sans demander la fermeture de l'éditeur.
+        """
+        self._rm_deco()
+        self.enable_caret_line(True)
+        self.hide()
+
     def _edit_anyway(self):
         self._rm_deco()
         self.editor.setReadOnly(False)

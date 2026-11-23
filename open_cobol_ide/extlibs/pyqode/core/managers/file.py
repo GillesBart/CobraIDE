@@ -301,8 +301,8 @@ class FileManager(Manager):
         :param encoding: the new encoding to use to reload the file.
         """
         assert os.path.exists(self.path)
-        self.open(self.path, encoding=encoding,
-                  use_cached_encoding=False)
+        return self.open(self.path, encoding=encoding,
+                         use_cached_encoding=False)
 
     @staticmethod
     def _rm(tmp_path):
