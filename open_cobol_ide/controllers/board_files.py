@@ -785,12 +785,87 @@ class BoardFilesPanel(QtCore.QObject):
         if not ok:
             self._error(tr('Rename'), message)
             return
-        self._forget_cache_copy(remote, board)
+        self._follow_rename(remote, new, board)
         if parent is not None:
             try:
                 self._reload(parent)
             except RuntimeError:
                 self.refresh()
+
+    def _follow_rename(self, remote, new, board):
+        """
+        Les onglets ouverts sur le fichier renommé (ou sur un fichier du
+        dossier renommé) suivent le nouveau nom : la copie de travail est
+        renommée aussi, et l'onglet est redirigé vers elle (titre compris).
+        Un enregistrement va donc au bon endroit, et jamais sous l'ancien nom.
+        """
+        old_local = self.local_path(remote, board)
+        new_local = self.local_path(new, board)
+        if os.path.exists(old_local):
+            try:
+                if os.path.isdir(new_local):
+                    shutil.rmtree(new_local)
+                elif os.path.exists(new_local):
+                    os.remove(new_local)
+                os.rename(old_local, new_local)
+            except OSError:
+                _logger().exception('cannot rename the working copy')
+                self._forget_cache_copy(remote, board)
+                return
+        moves = [(old_local, new_local)]
+        old_drive = self._drive_target(board, remote)
+        new_drive = self._drive_target(board, new)
+        if old_drive is not None and new_drive is not None:
+            moves.append((old_drive, new_drive))
+        retargeted = False
+        for editor in self._ui.tabWidgetEditors.widgets(include_clones=True):
+            try:
+                path = os.path.abspath(editor.file.path)
+            except (AttributeError, TypeError):
+                continue
+            for old, target in moves:
+                old = os.path.abspath(old)
+                key = os.path.normcase(path)
+                if key == os.path.normcase(old) or \
+                        key.startswith(os.path.normcase(old) + os.sep):
+                    self._retarget(editor, os.path.abspath(target) +
+                                   path[len(old):])
+                    retargeted = True
+                    break
+        self._refresh_recents()
+        if retargeted:
+            # une extension changée (.txt en .py...) change le type d'éditeur
+            QtCore.QTimer.singleShot(
+                0, lambda: self.app.edit._on_document_saved('', ''))
+
+    def _retarget(self, editor, path):
+        """L'éditeur désigne maintenant ``path`` (même contenu, autre nom)."""
+        editor.file._path = path
+        name = os.path.basename(path)
+        editor.setDocumentTitle(name)
+        try:
+            from pyqode.core.cache import Cache
+            Cache().set_file_encoding(path, editor.file.encoding)
+        except Exception:
+            _logger().exception('cannot copy the encoding')
+        try:
+            from pyqode.core.modes import FileWatcherMode
+            editor.modes.get(FileWatcherMode)._update_mtime()
+        except (KeyError, AttributeError):
+            pass
+        tabs = editor.parent_tab_widget
+        index = tabs.indexOf(editor)
+        if index < 0:
+            return
+        prefix = '* ' if tabs.tabText(index).startswith('* ') else ''
+        tabs.setTabText(index, prefix + name)
+        try:
+            tabs.setTabIcon(index, self._ui.tabWidgetEditors._icon(name))
+        except (AttributeError, TypeError):
+            pass
+        if tabs.currentWidget() is editor:
+            self.controller.main_window.setWindowTitle(
+                '%s - %s' % (name, self.app.title))
 
     def _rename_via_drive(self, remote, new, board):
         source = self._drive_target(board, remote)
