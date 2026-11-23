@@ -81,12 +81,9 @@ class ViewController(Controller):
     def _on_tab_bar_double_clicked(self):
         """
         Double-clic sur un endroit libre de la barre d'onglets : nouveau
-        document (Ctrl + double-clic : bascule de perspective, comme avant).
+        document.
         """
-        if QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ControlModifier:
-            self.toggle_perspective()
-        else:
-            self.app.edit.new_document()
+        self.app.edit.new_document()
 
     def toggle_perspective(self):
         self.show_perspective(

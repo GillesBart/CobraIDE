@@ -248,12 +248,31 @@ class EditController(Controller):
             return micropython.board_files.pc_root()
         return Settings().last_path
 
+    def _new_document_name(self):
+        """
+        Premier nom libre parmi nouveau.txt, nouveau1.txt, nouveau2.txt, ...
+        (les noms des onglets déjà ouverts sont pris en compte).
+        """
+        used = set()
+        for editor in self.ui.tabWidgetEditors.widgets(include_clones=True):
+            path = editor.file.path
+            title = os.path.basename(path) if path else editor.documentTitle()
+            used.add(title.lower())
+        name = 'nouveau.txt'
+        number = 0
+        while name in used:
+            number += 1
+            name = 'nouveau%d.txt' % number
+        return name
+
     def new_document(self):
         """
-        Ouvre un onglet vide « nouveau.txt », sans créer de fichier : le nom
-        n'est demandé qu'à l'enregistrement.
+        Ouvre un onglet vide « nouveau.txt » (puis nouveau1.txt, nouveau2.txt,
+        ...), sans créer de fichier : le nom n'est demandé qu'à
+        l'enregistrement.
         """
         tabs = self.ui.tabWidgetEditors
+        name = self._new_document_name()
         editor = tabs.create_new_document(
             base_name='nouveau', extension='.txt',
             preferred_eol=Settings().preferred_eol,
@@ -264,7 +283,6 @@ class EditController(Controller):
             # arborescence du PC : dernier dossier utilisé (sans fichier ouvert,
             # elle n'aurait sinon aucune racine)
             self.ui.tvFileSystem.set_root_path(self._pc_root())
-        name = 'nouveau.txt'
         editor.setDocumentTitle(name)
         tabs_widget = editor.parent_tab_widget
         tabs_widget.setTabText(tabs_widget.indexOf(editor), name)
