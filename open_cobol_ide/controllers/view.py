@@ -85,10 +85,6 @@ class ViewController(Controller):
         """
         self.app.edit.new_document()
 
-    def toggle_perspective(self):
-        self.show_perspective(
-            'minimal' if Settings().perspective == 'default' else 'default')
-
     def make_main_menu(self):
         mnu = QtWidgets.QMenu(self.main_window)
         mnu.addMenu(self.ui.menuFile)

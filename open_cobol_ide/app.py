@@ -96,7 +96,9 @@ class Application(QtCore.QObject):
         self.help = HelpController(self)
         self.win.app = self
 
-        self.view.show_perspective(Settings().perspective)
+        # la perspective « minimale » n'a plus de commande : on revient
+        # toujours à l'affichage normal (même si elle était mémorisée)
+        self.view.show_perspective('default')
 
         self.update_app_style()
 
