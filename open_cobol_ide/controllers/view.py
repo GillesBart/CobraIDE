@@ -50,7 +50,7 @@ class ViewController(Controller):
         self.ui.tabWidgetEditors.customContextMenuRequested.connect(
             self.show_main_menu_as_context_menu)
         self.ui.tabWidgetEditors.tab_bar_double_clicked.connect(
-            self.toggle_perspective)
+            self._on_tab_bar_double_clicked)
         self.ui.actionFullscreen.triggered.connect(self.toggle_fullscreen)
         self.bt_mnu = QtWidgets.QToolButton()
         self.main_window.addActions(self.make_main_menu().actions())
@@ -77,6 +77,16 @@ class ViewController(Controller):
         self.main_window.restore_state()
         self._flg_fs_visible = self.ui.dockWidgetFileSystem.isVisible()
         self._flg_nav_visible = self.ui.dockWidgetNavPanel.isVisible()
+
+    def _on_tab_bar_double_clicked(self):
+        """
+        Double-clic sur un endroit libre de la barre d'onglets : nouveau
+        document (Ctrl + double-clic : bascule de perspective, comme avant).
+        """
+        if QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ControlModifier:
+            self.toggle_perspective()
+        else:
+            self.app.edit.new_document()
 
     def toggle_perspective(self):
         self.show_perspective(

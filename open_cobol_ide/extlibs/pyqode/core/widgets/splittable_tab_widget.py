@@ -171,6 +171,18 @@ class BaseTabWidget(QtWidgets.QTabWidget):
 
         self.detached_tabs = []
 
+    def mouseDoubleClickEvent(self, event):
+        # la barre d'onglets ne fait que la largeur des onglets : l'espace
+        # libre à sa droite appartient à ce widget (voir TabBar)
+        bar = self.tabBar()
+        rect = bar.geometry()
+        if (event.button() == QtCore.Qt.LeftButton and
+                event.pos().y() <= rect.bottom() and
+                not rect.contains(event.pos())):
+            bar.double_clicked.emit()
+            return
+        super(BaseTabWidget, self).mouseDoubleClickEvent(event)
+
     def tab_under_menu(self):
         """
         Returns the tab that sits under the context menu.

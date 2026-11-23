@@ -25,5 +25,22 @@ class TabBar(QtWidgets.QTabBar):
                 self.parentWidget().tabCloseRequested.emit, tab)
 
     def mouseDoubleClickEvent(self, event):
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() != QtCore.Qt.LeftButton:
+            return
+        index = self.tabAt(event.pos())
+        if index < 0:
+            # endroit libre de la barre d'onglets
             self.double_clicked.emit()
+            return
+        # double-clic sur un onglet : fermeture (avec la demande
+        # d'enregistrement habituelle si le document est modifié). Différée
+        # comme pour le clic du milieu : la fermeture peut détruire la barre
+        # qui est en train de traiter l'événement.
+        tab_widget = self.parentWidget()
+        widget = tab_widget.widget(index)
+
+        def close_tab():
+            i = tab_widget.indexOf(widget)
+            if i >= 0:
+                tab_widget.tabCloseRequested.emit(i)
+        QtCore.QTimer.singleShot(0, close_tab)
