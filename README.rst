@@ -1,183 +1,78 @@
 CobraIDE
+========
+
+CobraIDE is a portable IDE for **COBOL** (GnuCOBOL), **Python**, **MicroPython**
+and **CircuitPython**, for Windows. It is derived from OpenCobolIDE 4.7.6
+(https://github.com/OpenCobolIDE/OpenCobolIDE, no longer maintained since 2018).
+The Python package is still called ``open_cobol_ide``.
+
+*CobraIDE est un environnement de développement portable pour le COBOL
+(GnuCOBOL), le Python, le MicroPython et le CircuitPython, sous Windows. Son
+interface est en français par défaut (variable d'environnement* ``OCIDE_LANG=en``
+*pour l'anglais).*
+
+
+Download
 --------
 
-CobraIDE is a portable IDE for COBOL (GnuCOBOL), Python, MicroPython and
-CircuitPython, derived from OpenCobolIDE (https://github.com/OpenCobolIDE/OpenCobolIDE,
-no longer maintained). The Python package is still called ``open_cobol_ide``.
+Get the latest ``CobraIDE-<version>-win64.zip`` from the **Releases** page:
+https://github.com/GillesBart/CobraIDE/releases
 
-Features:
----------
+Unzip it anywhere (a USB drive works too) and run ``CobraIDE.exe``. Nothing is
+installed: the settings are kept in the ``data`` folder next to the program, and
+everything is found again when a removable drive changes its drive letter.
 
-- COBOL syntax highlighter
-- COBOL code completion
-- COBOL code folding
-- configurable margins
-- navigable tree view of division, sections, paragraphs etc (fully synchronised
-  with the code folding panel)
-- auto-indentation
+
+Features
+--------
+
+COBOL
+
+- syntax highlighting, code completion, code folding, navigable tree of
+  divisions, sections and paragraphs
 - tool for computing PIC fields offsets
-- compile as a program (.exe) or as a subprogram (.so/.dll)
-- run the program from the editor or from a configurable external terminal (
-  necessary if you are using the SCREEN section).
+- compile and run from the editor (GnuCOBOL 3.2 is bundled)
+
+Python, MicroPython and CircuitPython
+
+- editor with outline, auto-indentation and live syntax checking
+- run the program from the editor
+- **Board panel** (button *Board* of the file system dock): browse the files of
+  a MicroPython or CircuitPython board, open them, edit them and save them back
+  to the board; create, rename and delete files and folders. Boards are
+  recognised by their USB serial number. A CircuitPython board mounted as a
+  USB drive (CIRCUITPY) is edited directly; other boards go through
+  ``mpremote`` (installed from the MicroPython menu).
+
+Editing
+
+- tabs: double-click a tab to close it (a modified file asks to be saved),
+  double-click the free space of the tab bar for a new document
+- drag and drop files on the editor to open them
+- file encodings can be changed from the context menu
 - dark color schemes and theme
-- cross platform: works on **GNU/Linux**, **Windows** and **Mac OSX**
-- dbpre integration on Linux, esqlOC on Windows
+
+
+Running from the sources
+------------------------
+
+Python 3.13 is used. In the CobraIDE folder::
+
+    py -3.13 -m venv .venv
+    .venv\Scripts\activate
+    pip install PyQt5 pygments pywin32 cx_Freeze
+    set PYTHONPATH=%CD%\open_cobol_ide\extlibs;%CD%
+    python CobraIDE.pyw
+
+Building ``CobraIDE.exe`` (cx_Freeze), with the same ``PYTHONPATH``::
+
+    rmdir /s /q build
+    cd scripts
+    python freeze.py
 
 
 License
 -------
 
-OpenCobolIDE is released under the **GPL** version 3
-
-
-Dependencies
-------------
-
-- `GnuCOBOL`_
-- `Python3`_ >= 3.3
-- `PyQt5`_ (preferred) or `PyQt4`_
-- `setuptools`_
-
-*Starting from v4.7, the following pure python dependencies are bundled with OCIDE (this makes packaging easier):*
-
-- `pyqode.qt`_
-- `pyqode.core`_
-- `pyqode.cobol`_
-- `Pygments`_
-- `qdarkstyle`_
-- `keyring`_
-- `githubpy`_
-
-
-Installation
-------------
-
-GNU/Linux
-#########
-
-*Note: starting from v4.6.2, the installed executable name is lowercase: opencobolide*
-
-Ubuntu
-++++++
-
-A debian package is available here: https://launchpad.net/cobcide/+download
-
-This package should work on any Ubuntu version >= 14.04 and on any version
-derived from Ubuntu.
-
-Fedora
-++++++
-
-A RPM package for Fedora 23 is available here: https://launchpad.net/cobcide/+download
-
-
-ArchLinux
-+++++++++
-
-OpenCobolIDE is available from the `AUR`_.
-
-You can install using one of the many available AUR helper; e.g. using yaourt::
-
-    yaourt -S opencobolide
-
-KaOS
-++++
-
-OpenCobolIDE is up in the KaOs Community Packages (KCP)::
-
-    kcp -i gnu-cobol
-    kcp -i opencobolide
-
-
-Other distributions
-+++++++++++++++++++
-
-Install Python3, PyQt5, GnuCOBOL and pip for Python3 using your package manager, then run the following commands::
-
-    sudo pip3 install OpenCobolIDE --upgrade
-
-
-Note that if you have both PyQt5 and PyQt4 on your system, the IDE will use
-PyQt5 by default. To force the use of PyQt4, you should set the
-``QT_API`` environment variable to ``pyqt4``.
-
-
-Windows
-#######
-
-There is a windows installer available here: https://launchpad.net/cobcide/+download
-
-Mac OSX
-#######
-
-There is a dmg image available here: https://launchpad.net/cobcide/+download
-
-Before running the app, you first have to install the GnuCOBOL compiler, e.g.
-using homebrew::
-
-    brew install gnu-cobol
-
-
-If you installed the compiler in a non-standard path and it is not recognized
-by the IDE, you can specify the path to the compiler in the preferences
-dialog (``Compiler`` tab)
-
-
-Resources
----------
-
--  `Downloads`_
--  `Source repository`_
--  `Issue tracker`_
--  `Documentation`_
-
-
-Screenshots
------------
-
-* Home page:
-
-.. image:: https://raw.githubusercontent.com/OpenCobolIDE/OpenCobolIDE/master/doc/source/_static/Home.png
-    :align: center
-
-* Editor:
-
-.. image:: https://raw.githubusercontent.com/OpenCobolIDE/OpenCobolIDE/master/doc/source/_static/MainWindow.png
-    :align: center
-
-* Code folding:
-
-.. image:: https://raw.githubusercontent.com/OpenCobolIDE/OpenCobolIDE/master/doc/source/_static/Folding.png
-    :align: center
-
-* Offset calculator
-
-.. image:: https://raw.githubusercontent.com/OpenCobolIDE/OpenCobolIDE/master/doc/source/_static/PicOffsets.png
-    :align: center
-
-
-* Dark style support
-
-.. image:: https://raw.githubusercontent.com/OpenCobolIDE/OpenCobolIDE/master/doc/source/_static/Dark.png
-    :align: center
-
-
-.. _PyQt4: http://www.riverbankcomputing.co.uk/software/pyqt/download
-.. _Downloads: https://launchpad.net/cobcide/+download
-.. _Source repository: https://github.com/GillesBart/CobraIDE/
-.. _Issue tracker: https://github.com/GillesBart/CobraIDE/issues?state=open
-.. _Documentation: http://opencobolide.readthedocs.org/en/latest/
-.. _Pygments: http://pygments.org/
-.. _pyqode.core: https://github.com/pyQode/pyqode.core/
-.. _pyqode.cobol: https://github.com/pyQode/pyqode.cobol/
-.. _pyqode.qt: https://github.com/pyQode/pyqode.qt/
-.. _GnuCOBOL: http://sourceforge.net/projects/open-cobol/
-.. _setuptools: https://pypi.python.org/pypi/setuptools
-.. _Python3: http://python.org/
-.. _PyQt5: http://www.riverbankcomputing.co.uk/software/pyqt/download
-.. _qdarkstyle: https://github.com/ColinDuquesnoy/QDarkStyleSheet
-.. _pyQode: https://github.com/pyQode/
-.. _githubpy: https://pypi.python.org/pypi/githubpy
-.. _keyring: https://pypi.python.org/pypi/keyring
-.. _HackEdit: https://github.com/HackEdit/hackedit
-.. _AUR: https://aur.archlinux.org/packages/opencobolide/
+CobraIDE is released under the **GPL** version 3, like OpenCobolIDE. See
+``LICENSE`` and ``AUTHORS.rst`` for the credits of the original project.
